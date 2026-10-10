@@ -1,0 +1,68 @@
+sequenceDiagram
+    autonumber
+    actor J as Associado
+    participant T as Totem (navegador do tablet)
+    participant API as Aplicacao de gestao (PHP)
+    participant DB as MySQL
+
+    Note over T: Ao abrir a tela, o totem carrega os modelos de visao<br/>a partir de arquivos locais do proprio servidor.
+
+    T->>API: GET getFaceDescriptors
+    API->>DB: Seleciona descritores dos associados ativos
+    DB-->>API: Lista de descritores
+    API-->>T: JSON com descritores de todos os ativos
+    Note right of T: Risco registrado em ADR-001: o template biometrico<br/>de todo o quadro ativo trafega para o tablet.
+
+    T->>API: GET getJogoDoDia
+    API->>DB: Busca jogo de hoje com status agendado, aberto ou em andamento
+    DB-->>API: Jogo do dia ou vazio
+
+    alt Nao ha jogo hoje
+        API-->>T: Sem jogo disponivel
+        T-->>J: Exibe aviso e encerra o fluxo
+    else Ha jogo do dia
+        API-->>T: Dados do jogo
+        J->>T: Posiciona o rosto na camera
+        T->>T: Extrai descritor do rosto e compara localmente<br/>com o limiar de similaridade configurado
+
+        alt Rosto nao reconhecido
+            T-->>J: Pede nova tentativa ou autenticacao por WebAuthn
+            J->>T: Usa a digital do dispositivo
+            T->>API: POST webauthn auth
+            API->>DB: Valida credencial registrada
+            DB-->>API: Associado identificado
+            API-->>T: Identificador do associado
+        else Rosto reconhecido
+            T->>T: Resolve o identificador do associado sem chamar o servidor
+        end
+
+        T->>API: POST checkinTotem com segredo do totem e identificador
+        API->>API: Compara o segredo recebido com o configurado
+
+        alt Segredo invalido
+            API-->>T: 403, acesso nao autorizado
+        else Segredo valido
+            API->>DB: Confere se o associado existe e esta ativo
+            API->>DB: Confere presenca ja registrada neste jogo
+            alt Presenca ja registrada
+                API->>DB: Recalcula a posicao na fila de chegada
+                DB-->>API: Posicao
+                API-->>T: Presenca ja confirmada, com nome e posicao
+                Note over API,DB: Esta e a protecao de idempotencia do fluxo.<br/>Uma segunda leitura do mesmo rosto nao duplica presenca.
+            else Primeira leitura
+                API->>DB: Conta presencas confirmadas do jogo
+                DB-->>API: Total atual
+                alt Limite de jogadores atingido
+                    API-->>T: Limite atingido, presenca recusada
+                else Dentro do limite
+                    API->>DB: Insere presenca com horario de chegada
+                    API->>DB: Conta o novo total
+                    DB-->>API: Total atualizado
+                    API-->>T: Presenca confirmada, nome e posicao na fila
+                    T-->>J: Exibe confirmacao na tela do totem
+                end
+            end
+        end
+    end
+
+    Note over T,API: Falha nao tratada hoje: queda de rede entre o envio e a resposta.<br/>O associado repete a leitura e a chamada de duplicata absorve o caso.

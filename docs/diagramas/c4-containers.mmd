@@ -1,0 +1,45 @@
+flowchart LR
+    torcedor(["Visitante do site"])
+    assoc(["Associado"])
+    admin(["Diretoria e funcionarios"])
+
+    subgraph ARE["Sistema ARE Football Club - hospedagem compartilhada Apache e PHP"]
+        direction TB
+        lp["Landing page publica<br/>HTML e JS sem etapa de build<br/>Elenco, campeonato, noticias, galeria"]
+        pwa["App do associado<br/>PWA com Service Worker<br/>Check-in, mensalidades, notificacoes"]
+        totem["Totem de presenca<br/>Tela de quiosque no tablet do clube<br/>Reconhecimento facial e WebAuthn no navegador"]
+        app["Aplicacao de gestao<br/>PHP com MVC proprio e ponto de entrada unico<br/>Autenticacao, regra de negocio e acesso a dados"]
+        db[("Banco de dados<br/>MySQL are_football_club")]
+        files[("Arquivos enviados<br/>Disco do servidor na pasta publica")]
+    end
+
+    pushsvc["Servico de push do navegador<br/>EXTERNO"]
+    mail["Entrega de e-mail do servidor<br/>EXTERNO"]
+    sched["Agendador do painel de hospedagem<br/>EXTERNO"]
+
+    torcedor --> lp
+    assoc --> pwa
+    assoc -->|"Usa no clube, sem login"| totem
+    admin --> app
+
+    lp -->|"Le o catalogo publico em JSON"| app
+    pwa -->|"Chamadas JSON autenticadas por sessao"| app
+    totem -->|"Le descritores e registra presenca<br/>autenticado por segredo compartilhado"| app
+
+    app --> db
+    app -->|"Grava fotos e logos"| files
+    lp -.->|"Le imagens publicadas"| files
+
+    app -->|"Notificacao assinada com VAPID"| pushsvc
+    pushsvc -.->|"Entrega ao dispositivo"| pwa
+    app -->|"Link de recuperacao de senha"| mail
+    sched -->|"Endpoint protegido por token<br/>abre e encerra jogos no horario"| app
+
+    classDef pessoa fill:#f4f0ff,stroke:#5b3df5,color:#1a1a2e
+    classDef container fill:#e8f0ff,stroke:#1f5fd0,color:#10203a
+    classDef dados fill:#eef6ee,stroke:#2f7d32,color:#10203a
+    classDef externo fill:#eeeeee,stroke:#777777,color:#333333
+    class torcedor,assoc,admin pessoa
+    class lp,pwa,totem,app container
+    class db,files dados
+    class pushsvc,mail,sched externo

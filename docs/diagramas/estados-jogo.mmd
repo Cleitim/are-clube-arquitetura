@@ -1,0 +1,21 @@
+stateDiagram-v2
+    direction LR
+    [*] --> agendado: Jogo criado ou gerado para o ano
+    agendado --> aberto: Horario de liberacao do check-in, pelo agendador externo
+    agendado --> cancelado: Cancelamento manual
+    aberto --> em_andamento: Inicio da partida marcado no painel
+    aberto --> encerrado: Horario de fim, pelo agendador externo
+    em_andamento --> encerrado: Encerramento manual ou por horario
+    encerrado --> [*]
+    cancelado --> [*]
+
+    note right of aberto
+        O totem so aceita check-in nos estados
+        agendado, aberto e em_andamento.
+        A abertura dispara notificacao push a todos.
+    end note
+
+    note right of encerrado
+        Placar, gols e destaque so sao
+        registrados a partir deste estado.
+    end note
